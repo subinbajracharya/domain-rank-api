@@ -1,98 +1,157 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Domain Ranking App - Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A NestJS API for fetching and caching domain rankings from the Tranco List.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Features
 
-## Description
+- **Domain Ranking API** - Fetch ranking history for multiple domains
+- **Caching** - 24-hour in-database cache to reduce external API calls
+- **PostgreSQL Database** - Persistent storage with Prisma ORM
+- **CORS Support** - Configured for frontend on port 3001
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Prerequisites
 
-## Project setup
+- Node.js 18+
+- npm, pnpm, or yarn
+- PostgreSQL database (Neon cloud database configured)
+- Tranco List API access
+
+## Setup
+
+Install dependencies:
 
 ```bash
-$ npm install
+npm install
 ```
 
-## Compile and run the project
+## Configuration
+
+Create a `.env` file in the root directory:
+
+```env
+# Database (Neon PostgreSQL)
+DATABASE_URL=postgresql://user:password@host/neondb?sslmode=require
+
+# For CORS (frontend on port 3001)
+FRONTEND_URL=http://localhost:3001
+PORT=3000
+
+# Tranco API
+TRANCO_API_BASE=https://tranco-list.eu/api/ranks/domain
+CACHE_HOURS=24
+```
+
+## Development Server
+
+Start the development server:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm run start:dev
 ```
 
-## Run tests
+The API will be available at `http://localhost:3000`
+
+## Production
+
+Build the application:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm run build
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Start production server:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run start:prod
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## API Endpoints
+
+### Get Rankings
+
+```
+GET /rankings/{domains}
+```
+
+Where `{domains}` is a comma-separated list of domain names.
+
+**Example Request:**
+
+```
+GET /rankings/facebook.com,google.com
+```
+
+**Example Response:**
+
+```json
+{
+  "facebook.com": {
+    "domain": "facebook.com",
+    "labels": ["2024-01-01", "2024-01-02", "2024-01-03", ...],
+    "ranks": [3, 3, 4, ...]
+  },
+  "google.com": {
+    "domain": "google.com",
+    "labels": ["2024-01-01", "2024-01-02", "2024-01-03", ...],
+    "ranks": [1, 1, 1, ...]
+  }
+}
+```
+
+## Tech Stack
+
+- **Framework**: NestJS
+- **Database**: PostgreSQL (via Prisma ORM)
+- **ORM**: Prisma
+- **External API**: Tranco List API
+- **Caching**: 24-hour in-database cache
+- **HTTP Client**: Axios
+
+## Project Structure
+
+```
+domain-rank-api/
+├── prisma/
+│   ├── schema.prisma      # Database schema
+│   └── migrations/        # Database migrations
+├── src/
+│   ├── app.module.ts      # Root module
+│   ├── main.ts            # Entry point
+│   └── rankings/
+│       ├── rankings.controller.ts  # API endpoints
+│       ├── rankings.module.ts      # Rankings module
+│       └── rankings.service.ts     # Business logic
+└── package.json
+```
+
+## Database Schema
+
+```prisma
+model Ranking {
+  id        String   @id @default(cuid())
+  domain    String
+  date      String   // YYYY-MM-DD
+  rank      Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([domain])
+  @@index([date])
+  @@unique([domain, date])
+}
+```
+
+## Frontend
+
+See [domain-rank-web](../domain-rank-web/README.md) for frontend details:
+
+- **Framework**: Nuxt 4 / Vue 3
+- **Styling**: Bootstrap 5
+- **Charts**: Chart.js with vue-chartjs
+- **Development Server**: Port 3001
 
 ## Resources
 
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- [NestJS Documentation](https://docs.nestjs.com)
+- [Prisma Documentation](https://www.prisma.io/docs)
+- [Tranco List API](https://tranco-list.eu)
