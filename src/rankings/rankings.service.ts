@@ -113,7 +113,6 @@ export class RankingsService {
           data = response.data;
         } catch (error) {
           if (axios.isAxiosError(error) && error.response?.status === 404) {
-            // Domain not found in Tranco - skip but don't throw
             continue;
           }
           // Re-throw for other API errors
@@ -124,7 +123,6 @@ export class RankingsService {
 
         // Check if domain has ranking data
         if (!data.ranks || data.ranks.length === 0) {
-          // No ranking data - skip but don't throw
           continue;
         }
 
@@ -147,11 +145,10 @@ export class RankingsService {
           ranks: data.ranks.map((r) => r.rank),
         };
       } catch (error) {
-        // Skip individual domain errors but continue processing
         if (error instanceof BadRequestException) {
           throw error;
         }
-        // Continue on other errors
+        continue;
       }
     }
 
