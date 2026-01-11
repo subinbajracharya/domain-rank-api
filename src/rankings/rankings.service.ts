@@ -69,64 +69,66 @@ export class RankingsService {
   async getRanking(domainsParam: string) {
     const domains = domainsParam
       .split(',')
-      .map((d) => d.trim())
-      .filter(Boolean)
-      .map((d) => this.normalizeDomain(d));
+      .map((d) => this.normalizeDomain(d.trim()))
+      .filter(Boolean);
 
     if (!domains.length) {
       throw new BadRequestException('No domains provided');
     }
+
+    // Batch fetch latest rankings in one query
+    const allLatest = await this.prisma.ranking.findMany({
+      where: { domain: { in: domains } },
+      orderBy: { updatedAt: 'desc' },
+      distinct: ['domain'],
+    });
+
+    // Build latestByDomain map (first entry per domain is the latest due to orderBy + distinct)
+    const latestByDomain = Object.fromEntries(
+      allLatest.map((r) => [r.domain, r]),
+    );
+
+    // Identify domains needing refresh
+    const domainsNeedingRefresh = domains.filter(
+      (d) => !latestByDomain[d] || !this.isFresh(latestByDomain[d].updatedAt),
+    );
+    const cachedDomains = domains.filter(
+      (d) => !domainsNeedingRefresh.includes(d),
+    );
 
     const output: Record<
       string,
       { domain: string; labels: string[]; ranks: number[] }
     > = {};
 
-    for (const domain of domains) {
+    // Handle cached domains
+    if (cachedDomains.length > 0) {
+      const cachedRows = await this.prisma.ranking.findMany({
+        where: { domain: { in: cachedDomains } },
+        orderBy: { date: 'asc' },
+      });
+
+      // Group by domain
+      for (const row of cachedRows) {
+        if (!output[row.domain]) {
+          output[row.domain] = { domain: row.domain, labels: [], ranks: [] };
+        }
+        output[row.domain].labels.push(row.date);
+        output[row.domain].ranks.push(row.rank);
+      }
+    }
+
+    // Handle domains needing fresh data
+    for (const domain of domainsNeedingRefresh) {
       try {
-        const latest = await this.prisma.ranking.findFirst({
-          where: { domain },
-          orderBy: { updatedAt: 'desc' },
-        });
+        const response = await axios.get<TrancoResponse>(
+          `${this.trancoApiBase}/${encodeURIComponent(domain)}`,
+          { timeout: 15000 },
+        );
+        const data = response.data;
 
-        if (latest && this.isFresh(latest.updatedAt)) {
-          const rows = await this.prisma.ranking.findMany({
-            where: { domain },
-            orderBy: { date: 'asc' },
-          });
+        if (!data.ranks?.length) continue;
 
-          output[domain] = {
-            domain,
-            labels: rows.map((r) => r.date),
-            ranks: rows.map((r) => r.rank),
-          };
-          continue;
-        }
-
-        // Fetch from Tranco
-        let data: TrancoResponse;
-        try {
-          const response = await axios.get<TrancoResponse>(
-            `${this.trancoApiBase}/${encodeURIComponent(domain)}`,
-            { timeout: 15000 },
-          );
-          data = response.data;
-        } catch (error) {
-          if (axios.isAxiosError(error) && error.response?.status === 404) {
-            continue;
-          }
-          // Re-throw for other API errors
-          throw new BadRequestException(
-            'Failed to fetch ranking data from Tranco API',
-          );
-        }
-
-        // Check if domain has ranking data
-        if (!data.ranks || data.ranks.length === 0) {
-          continue;
-        }
-
-        // Refresh DB cache: delete then insert
         await this.prisma.$transaction([
           this.prisma.ranking.deleteMany({ where: { domain: data.domain } }),
           this.prisma.ranking.createMany({
@@ -135,7 +137,6 @@ export class RankingsService {
               date: r.date,
               rank: r.rank,
             })),
-            skipDuplicates: true,
           }),
         ]);
 
@@ -145,14 +146,13 @@ export class RankingsService {
           ranks: data.ranks.map((r) => r.rank),
         };
       } catch (error) {
-        if (error instanceof BadRequestException) {
-          throw error;
-        }
-        continue;
+        if (axios.isAxiosError(error) && error.response?.status === 404)
+          continue;
+        if (error instanceof BadRequestException) throw error;
       }
     }
 
-    if (Object.keys(output).length === 0) {
+    if (!Object.keys(output).length) {
       throw new BadRequestException(
         "None of the provided domains are ranked within Tranco's Top 1M domains.",
       );
